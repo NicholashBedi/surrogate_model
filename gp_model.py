@@ -8,7 +8,6 @@ import matplotlib.animation as animation
 
 np.set_printoptions(precision=2,suppress=True)
 
-
 def test_function(x):
     return (x*6-2)**2*np.sin(x*12-4)
 # Test function values
@@ -47,21 +46,26 @@ def improve_model(model, candidates, x_train, y_train, colour_train, max_iter = 
 
 
 # Initial training data
-x_train = np.array([0, 0.1, 0.5, 0.9, 1])
+x_train = np.array([0, 0.4, 1])
 initial_length = len(x_train)
 y_train = test_function(x_train)
 colour_train = np.zeros(x_train.shape[0])
 # Train initial Gaussian Process (GP) model
-kernel = gp.kernels.ConstantKernel(1.0, (1e-1, 1e3)) * gp.kernels.RBF(1.0, (1e-8, 1e8))
+kernel = gp.kernels.RBF(1.0, (1e-8, 1e8))
 model = gp.GaussianProcessRegressor(kernel=kernel,
                                     optimizer='fmin_l_bfgs_b',
-                                    n_restarts_optimizer=30,
+                                    n_restarts_optimizer=60,
                                     alpha=1e-10,
-                                    normalize_y=True)
+                                    normalize_y = False,
+                                    random_state = 1)
 x_train, y_train, colour_train, y_predictions, pred_std = improve_model(model, x_linspace, x_train, y_train, colour_train)
+
+def on_pause(x):
+    anim.resume()
 
 fig = plt.figure()
 ax = plt.axes(xlim=(-0.1,1.1), ylim=(-10,20))
+fig.canvas.mpl_connect('button_press_event', on_pause)
 true_func_line, = ax.plot(x_linspace, y_linspace, 'r--', label="True Function")
 # Display global minimum
 min_index = np.argmin(y_linspace)
@@ -92,8 +96,9 @@ def animate(i):
                         y_predictions[i] + 1.9600 * pred_std[i], alpha = 0.5, color='k')
     # new_sample.set_data([-0.5,-0.5],[-10, 20])
     new_sample.set_data([x_train[initial_length+i], x_train[initial_length+i]], [-10, 20])
+    anim.pause()
     return predict_func_line, training_data_plt, new_sample, area_infill
 
 anim = animation.FuncAnimation(fig, animate, init_func=init, frames=len(y_predictions),
-                        interval = 1000, blit=True)
+                        interval = 100, blit=True)
 plt.show()
