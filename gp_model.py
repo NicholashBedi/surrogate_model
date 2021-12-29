@@ -7,12 +7,17 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 np.set_printoptions(precision=2,suppress=True)
-
-def test_function(x):
-    return (x*6-2)**2*np.sin(x*12-4)
+x_range = [0, 1.2]
+y_range = [-1.6, 2.2]
+def test_function(x, rand = True):
+    y = -(1.4 - 3*x)*np.sin(18*x)
+    if rand:
+        y += np.random.normal(scale = 0.1, size = y.shape)
+    return y
+    # return (x*6-2)**2*np.sin(x*12-4)
 # Test function values
-x_linspace = np.linspace(0, 1, 100)
-y_linspace = test_function(x_linspace)
+x_linspace = np.linspace(x_range[0], x_range[1], 100)
+y_linspace = test_function(x_linspace, rand = False)
 
 def EI_learning(candidates, y_pred, pred_std):
     current_objective = y_pred[np.argmin(y_pred)]
@@ -46,12 +51,14 @@ def improve_model(model, candidates, x_train, y_train, colour_train, max_iter = 
 
 
 # Initial training data
-x_train = np.array([0, 0.4, 1])
+x_train = np.array([0, 0.2, 0.4, 0.8, 1.1])
 initial_length = len(x_train)
 y_train = test_function(x_train)
 colour_train = np.zeros(x_train.shape[0])
 # Train initial Gaussian Process (GP) model
-kernel = gp.kernels.RBF(1.0, (1e-8, 1e8))
+kernel = gp.kernels.RBF(np.sqrt(1/20), length_scale_bounds = (1e-8, 10))
+# kernel = gp.kernels.RBF(np.sqrt(1/20), length_scale_bounds = "fixed")
+
 model = gp.GaussianProcessRegressor(kernel=kernel,
                                     optimizer='fmin_l_bfgs_b',
                                     n_restarts_optimizer=60,
@@ -64,7 +71,7 @@ def on_pause(x):
     anim.resume()
 
 fig = plt.figure()
-ax = plt.axes(xlim=(-0.1,1.1), ylim=(-10,20))
+ax = plt.axes(xlim=(x_range[0], x_range[1]), ylim=(y_range[0],y_range[1]))
 fig.canvas.mpl_connect('button_press_event', on_pause)
 true_func_line, = ax.plot(x_linspace, y_linspace, 'r--', label="True Function")
 # Display global minimum

@@ -3,65 +3,117 @@ from matplotlib import pyplot as plt
 import sklearn.gaussian_process as gp
 from objective_functions import ObjectiveFunction
 import gp_functions as gp_fun
+import matplotlib.animation as animation
 
+class MultiDimensionGP:
+    def __init__(self, type= "quadratic_1", noise_i = 0.1):
+        self.noise = noise_i
+        self.obf = ObjectiveFunction(type)
+        xaxis = np.arange(self.obf.limits[0], self.obf.limits[1], 0.1)
+        yaxis = np.arange(self.obf.limits[0], self.obf.limits[1], 0.1)
+        self.x, self.y = np.meshgrid(xaxis, yaxis)
+        self.mesh_data = np.vstack((self.x.ravel(), self.y.ravel())).T
+    def on_pause(self, x):
+        self.anim.resume()
 
-obf = ObjectiveFunction("quadratic_2")
-r_min = obf.limits[0]
-r_max = obf.limits[1]
+    def set_initial_training_data(self):
+        n = 2
+        np.random.seed(0)
+        self.train_input_data = np.random.uniform(self.obf.limits[0],
+                                                self.obf.limits[1],
+                                                (n,2))
+        self.train_objective = self.obf.calc(self.train_input_data[:, 0],
+                                            self.train_input_data[:,1],
+                                            noise = self.noise)
+        return
 
-xaxis = np.arange(r_min, r_max, 0.1)
-yaxis = np.arange(r_min, r_max, 0.1)
-x, y = np.meshgrid(xaxis, yaxis)
-results = obf.calc(x, y, noise = 0)
+    def create_GP_model(self):
+        # kernel = gp.kernels.RBF(1,
+                            # length_scale_bounds = (1e-2, 100))
+        kernel = gp.kernels.RBF(10,
+                            length_scale_bounds = "fixed")
+        self.model = gp.GaussianProcessRegressor(kernel=kernel,
+                                            optimizer='fmin_l_bfgs_b',
+                                            n_restarts_optimizer=100,
+                                            alpha=1e-10,
+                                            normalize_y = False,
+                                            random_state = 1)
 
-fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)) = plt.subplots(3,2)
-cs1 = ax1.contourf(x, y, results, cmap='cool')
-cbar1 = fig.colorbar(cs1, ax=ax1)
+    def set_up_graphs(self):
+        self.ax0.set_title("True")
+        self.ax1.set_title("GP estimate")
+        self.ax2.set_title("Error")
+        self.ax3.set_title("Uncertanty")
+        self.ax4.set_title("EI")
+        self.ax5.set_title("EI/Cost")
+        self.cs = []
+        self.axes = [self.ax0, self.ax1, self.ax2, self.ax3, self.ax4, self.ax5]
+        self.cbar = []
+        for ax in self.axes:
+            zero = np.zeros((self.x.shape))
+            self.cs.append(ax.contourf(self.x, self.y, zero, cmap='cool'))
+            ax.set_xlim([self.obf.limits[0], self.obf.limits[1]])
+            ax.set_ylim([self.obf.limits[0], self.obf.limits[1]])
+            self.cbar.append(self.fig.colorbar(self.cs[0], ax=ax))
+        self.ax1.scatter([], [], c='g', alpha = 0.8, s = 1) # Previously Tested points
+        self.ax4.scatter([], [], c='g', s = 2) # Points to test
+        return
 
-ax1.set_title("True")
-ax2.set_title("GP estimate")
-ax3.set_title("Error")
-ax4.set_title("Uncertanty")
-ax5.set_title("EI")
-for ax in [ax1,ax2, ax3, ax4, ax5, ax6]:
-    ax.set_xlim([r_min, r_max])
-    ax.set_ylim([r_min, r_max])
+    def main(self, frame):
+        # True plot (Can move to set up)
+        self.z = self.obf.calc(self.x, self.y, noise = 0)
+        self.cs[0] = self.ax0.contourf(self.x, self.y, self.z, cmap='cool')
+        self.cbar[0].remove()
+        self.cbar[0] = self.fig.colorbar(self.cs[0], ax=self.ax0)
 
-n = 50
-np.random.seed(0)
-training_data = np.random.uniform(r_min, r_max, (n,2))
+        # GP estimate
+        self.model.fit(self.train_input_data, self.train_objective)
 
-# Get guassian process model
-# kernels = [1.0 *gp.kernels.RBF(length_scale=1.0),
-#             1.0 * gp.kernels.DotProduct(sigma_0=1.0) ** 2]
-kernel = gp.kernels.RBF(np.sqrt(1/20), length_scale_bounds = (1e-8, 100))
-model = gp.GaussianProcessRegressor(kernel=kernel,
-                                    optimizer='fmin_l_bfgs_b',
-                                    n_restarts_optimizer=100,
-                                    alpha=1e-10,
-                                    normalize_y = False,
-                                    random_state = 1)
+        z_pred, pred_std = self.model.predict(self.mesh_data, return_std=True)
+        z_pred = z_pred.reshape(self.x.shape)
+        self.cs[1] = self.ax1.contourf(self.x,  self.y, z_pred,
+                        levels = self.cs[0].levels, cmap='cool')
+        self.cbar[1].remove()
+        self.cbar[1] = self.fig.colorbar(self.cs[1], ax=self.ax1)
+        self.ax1.scatter(self.train_input_data[:,0],
+                        self.train_input_data[:,1], c='g', alpha = 0.8, s = 1)
+        # Error plot
+        error = abs(z_pred - self.z)
+        self.cs[2] = self.ax2.contourf(self.x,  self.y, error, cmap='cool')
+        self.cbar[2].remove()
+        self.cbar[2] = self.fig.colorbar(self.cs[2], ax=(self.ax2))
+        # Uncertanty
+        self.cs[3] = self.ax3.contourf(self.x,  self.y,
+                                pred_std.reshape(self.x.shape), cmap='cool')
+        self.cbar[3].remove()
+        self.cbar[3] = self.fig.colorbar(self.cs[3], ax=(self.ax3))
+        # EI
+        new_sample, EI = gp_fun.EI_learning(self.mesh_data, z_pred.ravel(), pred_std)
+        print(new_sample)
+        self.cs[4] = self.ax4.contourf(self.x,  self.y, EI.reshape(self.x.shape), cmap='cool')
+        self.ax4.scatter(new_sample[0], new_sample[1], c='g', s = 4)
+        self.cbar[4].remove()
+        self.cbar[4] = self.fig.colorbar(self.cs[4], ax=(self.ax4))
 
-z = obf.calc(training_data[:, 0], training_data[:,1], noise = 0)
-model.fit(training_data, z)
-mesh_data = np.vstack((x.ravel(), y.ravel())).T
-z_pred, pred_std = model.predict(mesh_data, return_std=True)
-z_pred = z_pred.reshape(x.shape)
-cs2 = ax2.contourf(x,  y, z_pred, levels = cs1.levels, cmap='cool')
-cbar2 = fig.colorbar(cs1, ax=ax2)
-ax2.scatter(training_data[:,0], training_data[:,1], c='g', alpha = 0.8, s = 1)
+        # Add training data
+        self.train_input_data = np.append(self.train_input_data,
+                                            new_sample.reshape(1,2), axis = 0)
+        self.train_objective = np.append(self.train_objective,
+                                [self.obf.calc(new_sample[0], new_sample[1],
+                                            noise = self.noise)])
+        self.anim.pause()
+        return
 
-error = abs(z_pred - results)
-cs3 = ax3.contourf(x,  y, error, cmap='cool')
-cbar3 = fig.colorbar(cs3, ax=(ax3))
-cs4 = ax4.contourf(x, y, pred_std.reshape(x.shape), cmap='cool')
-cbar4 = fig.colorbar(cs4, ax=(ax4))
+    def animation(self):
+        self.fig, ((self.ax0, self.ax1), (self.ax2, self.ax3),
+                    (self.ax4, self.ax5)) = plt.subplots(3,2)
+        self.fig.canvas.mpl_connect('button_press_event', self.on_pause)
+        self.create_GP_model()
+        self.set_up_graphs()
+        self.set_initial_training_data()
+        self.anim = animation.FuncAnimation(self.fig, self.main,
+                        frames=10, interval = 100, blit=False)
+        plt.show()
 
-
-new_sample, EI = gp_fun.EI_learning(mesh_data, z_pred.ravel(), pred_std)
-cs5 = ax5.contourf(x, y, EI.reshape(x.shape), cmap='cool')
-ax5.scatter(new_sample[0], new_sample[1], c='g', s = 2)
-cbar5 = fig.colorbar(cs5, ax=(ax5))
-
-
-plt.show()
+a = MultiDimensionGP()
+a.animation()

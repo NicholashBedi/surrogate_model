@@ -7,6 +7,8 @@ class ObjectiveFunction:
             self.limits = [-5, 5]
         elif self.type == "quadratic_2":
             self.limits = [-10, 10]
+        elif self.type == "easoms":
+            self.limits = [-10, 10]
         else:
             print("Unknown type")
             print(self.type )
@@ -15,6 +17,9 @@ class ObjectiveFunction:
             return x**2.0 + y**2.0 + y + np.random.normal(scale = noise, size = y.shape)
         elif self.type == "quadratic_2":
             return 0.26 * (x**2 + y**2) - 0.48 * x * y + np.random.normal(scale = noise, size = y.shape)
+        elif self.type == "easoms":
+             return -np.cos(x) * np.cos(y) \
+                    * np.exp(-((x - np.pi)**2 + (y - np.pi)**2))
         else:
             print("Unknown type")
             print(self.type )
