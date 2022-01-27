@@ -9,10 +9,11 @@ import matplotlib.animation as animation
 np.set_printoptions(precision=2,suppress=True)
 x_range = [0, 1.2]
 y_range = [-1.6, 2.2]
-def test_function(x, rand = True):
+
+def test_function(x, rand = False):
     y = -(1.4 - 3*x)*np.sin(18*x)
-    if rand:
-        y += np.random.normal(scale = 0.1, size = y.shape)
+    # if rand:
+    #     y += np.random.normal(scale = 0.1, size = y.shape)
     return y
     # return (x*6-2)**2*np.sin(x*12-4)
 # Test function values
@@ -51,7 +52,7 @@ def improve_model(model, candidates, x_train, y_train, colour_train, max_iter = 
 
 
 # Initial training data
-x_train = np.array([0, 0.2, 0.4, 0.8, 1.1])
+x_train = np.array([0.1, 0.3, 0.4, 0.6, 0.8, 1.1])
 initial_length = len(x_train)
 y_train = test_function(x_train)
 colour_train = np.zeros(x_train.shape[0])

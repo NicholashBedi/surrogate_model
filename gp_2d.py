@@ -4,6 +4,7 @@ import sklearn.gaussian_process as gp
 from objective_functions import ObjectiveFunction
 import gp_functions as gp_fun
 import matplotlib.animation as animation
+import gp_inference as gpi
 
 class MultiDimensionGP:
     def __init__(self, type= "quadratic_1", noise_i = 0.1):
@@ -13,11 +14,12 @@ class MultiDimensionGP:
         yaxis = np.arange(self.obf.limits[0], self.obf.limits[1], 0.1)
         self.x, self.y = np.meshgrid(xaxis, yaxis)
         self.mesh_data = np.vstack((self.x.ravel(), self.y.ravel())).T
+
     def on_pause(self, x):
         self.anim.resume()
 
     def set_initial_training_data(self):
-        n = 2
+        n = 20
         np.random.seed(0)
         self.train_input_data = np.random.uniform(self.obf.limits[0],
                                                 self.obf.limits[1],
@@ -28,10 +30,10 @@ class MultiDimensionGP:
         return
 
     def create_GP_model(self):
-        # kernel = gp.kernels.RBF(1,
-                            # length_scale_bounds = (1e-2, 100))
-        kernel = gp.kernels.RBF(10,
-                            length_scale_bounds = "fixed")
+        kernel = gp.kernels.RBF(1,
+                            length_scale_bounds = (1e-2, 100))
+        # kernel = gp.kernels.RBF(10,
+        #                     length_scale_bounds = "fixed")
         self.model = gp.GaussianProcessRegressor(kernel=kernel,
                                             optimizer='fmin_l_bfgs_b',
                                             n_restarts_optimizer=100,
@@ -55,21 +57,24 @@ class MultiDimensionGP:
             ax.set_xlim([self.obf.limits[0], self.obf.limits[1]])
             ax.set_ylim([self.obf.limits[0], self.obf.limits[1]])
             self.cbar.append(self.fig.colorbar(self.cs[0], ax=ax))
+
+        # Graph 1 stays constant
+        self.z = self.obf.calc(self.x, self.y, noise = 0)
+        self.cs[0] = self.ax0.contourf(self.x, self.y, self.z, cmap='cool')
+
         self.ax1.scatter([], [], c='g', alpha = 0.8, s = 1) # Previously Tested points
         self.ax4.scatter([], [], c='g', s = 2) # Points to test
         return
 
     def main(self, frame):
-        # True plot (Can move to set up)
-        self.z = self.obf.calc(self.x, self.y, noise = 0)
-        self.cs[0] = self.ax0.contourf(self.x, self.y, self.z, cmap='cool')
-        self.cbar[0].remove()
-        self.cbar[0] = self.fig.colorbar(self.cs[0], ax=self.ax0)
-
         # GP estimate
-        self.model.fit(self.train_input_data, self.train_objective)
-
-        z_pred, pred_std = self.model.predict(self.mesh_data, return_std=True)
+        use_sklearn = True
+        if use_sklearn:
+            self.model.fit(self.train_input_data, self.train_objective)
+            z_pred, pred_std = self.model.predict(self.mesh_data, return_std=True)
+        else:
+            z_pred, pred_std = gpi.GP(self.mesh_data, self.train_input_data,
+                                self.train_objective, sigma_noise = self.noise)
         z_pred = z_pred.reshape(self.x.shape)
         self.cs[1] = self.ax1.contourf(self.x,  self.y, z_pred,
                         levels = self.cs[0].levels, cmap='cool')
